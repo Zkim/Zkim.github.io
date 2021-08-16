@@ -1,0 +1,20 @@
+I"�<blockquote>
+  <p>“Yeah It’s on. ”</p>
+</blockquote>
+
+<h2 id="正文">正文</h2>
+<ul>
+  <li>@_silgen_name(“方法名”) 无需桥接OC 不需要引用 即可在swift内实现调用OC方法</li>
+  <li>swift判等：protocol Equatable {
+ func ==(lhs: Self, rhs: Self) -&gt; Bool
+}</li>
+  <li>associatedtype 泛型占位</li>
+</ul>
+
+<h2 id="结束">结束</h2>
+
+<p>欢迎交流。</p>
+
+<p>—— Ade</p>
+
+:ET
