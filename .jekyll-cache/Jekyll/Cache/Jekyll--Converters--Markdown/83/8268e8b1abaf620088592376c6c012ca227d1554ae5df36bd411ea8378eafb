@@ -1,0 +1,150 @@
+I"�g<blockquote>
+  <p>“Yeah It’s on. ”</p>
+</blockquote>
+
+<h2 id="背景">背景</h2>
+
+<p>由于公司新业务需要用富文本编辑器实现插入#标签 、@XX 、$股票、Link、以及图片功能，就研究了一下方案。</p>
+<ol>
+  <li>调研了四种方案，分别是TextView,CoreText,TableView,H5实现做功能桥接。</li>
+  <li>由于业务上安卓先行，选型是原生实现所以抛弃了桥接H5方案。</li>
+  <li>安卓为了省事找了一个第三方去实现，就是原生插入编辑，如果用tableView实现，UI看起来就两端不同了所以也暂时抛弃。</li>
+  <li>思考了一下TextView及CoreText的优缺点，TextView实现效率上会比CoreText低，出问题的概率更高，实现时间短，CoreText实现效率高，更偏向底层上下文绘制，因为coreText中大量的调用c的方法，如果新人接手业务成本高。</li>
+  <li>所以暂时选择使用UITextView造个轮子，不使用第三方的原因是怕有坑到时候搞起来麻烦。后面有时间会用CoreText再搞一个出来。</li>
+</ol>
+
+<p id="build"></p>
+<hr />
+
+<h2 id="正文">正文</h2>
+
+<h3 id="第一步-搞一个万能的model">第一步: 搞一个万能的model</h3>
+<p>为什么要搞这个model?程序员都懒吧，把所有插入的标签需求数据存进去，如下：</p>
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">@</span><span class="nd">objcMembers</span>
+<span class="kd">class</span> <span class="nx">ReleaseContentDataModel</span><span class="p">:</span> <span class="nx">NSObject</span> <span class="p">{</span>
+    <span class="kd">var</span> <span class="nx">location</span><span class="p">:</span> <span class="nx">Int</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="kd">var</span> <span class="nx">length</span><span class="p">:</span> <span class="nx">Int</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="kd">var</span> <span class="nx">type</span> <span class="o">=</span> <span class="dl">""</span>
+    <span class="kd">var</span> <span class="nx">json</span><span class="p">:</span> <span class="p">[</span><span class="nb">String</span> <span class="p">:</span> <span class="nx">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">[:]</span>
+    <span class="kd">var</span> <span class="nx">string</span> <span class="o">=</span> <span class="dl">""</span>
+    <span class="kd">var</span> <span class="nx">url</span> <span class="o">=</span> <span class="dl">""</span>
+    <span class="kd">var</span> <span class="nx">renderingString</span> <span class="o">=</span> <span class="dl">""</span>
+    <span class="kd">var</span> <span class="nx">id</span><span class="p">:</span> <span class="nx">Int</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="kd">var</span> <span class="nx">code</span> <span class="o">=</span> <span class="dl">""</span>
+    <span class="kd">var</span> <span class="nx">image</span><span class="p">:</span> <span class="nx">UIImage</span> <span class="o">=</span> <span class="nx">UIImage</span><span class="p">()</span>
+    <span class="kd">var</span> <span class="nx">imageBounds</span><span class="p">:</span> <span class="nx">CGSize</span> <span class="o">=</span> <span class="nx">CGSize</span><span class="p">.</span><span class="nx">zero</span>
+<span class="p">}</span>
+</code></pre></div></div>
+<p>为什么有这么多乱七八糟类型和数据，都是泪，业务上不断调整需求导致model越来越壮了….不过现在应该是个基本的完全体了。
+这个model的主要功能是：
+1、给每个需要和发布页面交互的vc提供接口
+2、给自己的反解析提供数据结构，避免哪里都有乱七八糟。反解析的需求是通过服务器字符串解析成我们需要的结构，然后绘制成UI,而上面的model并没有和服务器交互，使我们本地生成的，所以在开发时候要预留处理方法。
+3、最重要的就是给自己的UI提供数据进行解析</p>
+
+<h3 id="第二步-封装textview">第二步: 封装TextView</h3>
+<p>我的TextView是继承RSKPlaceholderTextView的，主要是因为懒，Placeholder样式什么的懒得处理直接搞个第三方处理掉。
+给封装的TextView提供一个参数modelArray，用来存储绘制的所有标签内容</p>
+
+<h3 id="第三步-提供插入绘制接口">第三步: 提供插入绘制接口</h3>
+<p>现有有四种标签和图片样式，由于图片的处理和标签拼接文字方式不同，所以单独拉出来一个方法。</p>
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">func</span> <span class="nx">setContentText</span><span class="p">(</span><span class="nx">model</span><span class="p">:</span> <span class="nx">ReleaseContentDataModel</span><span class="p">)</span> <span class="p">{</span>
+        <span class="c1">//0.判断是否为插入，如果为插入，后面的tag需要同时location 增加为location+length</span>
+        <span class="k">for</span> <span class="nx">item</span> <span class="k">in</span> <span class="nx">modelArray</span> <span class="p">{</span>
+            <span class="k">if</span> <span class="nx">fullModel</span><span class="p">.</span><span class="nx">location</span> <span class="o">&lt;=</span> <span class="nx">item</span><span class="p">.</span><span class="nx">location</span> <span class="p">{</span>
+                <span class="nx">item</span><span class="p">.</span><span class="nx">location</span> <span class="o">=</span> <span class="nx">item</span><span class="p">.</span><span class="nx">location</span> <span class="o">+</span> <span class="dl">"</span><span class="s2"> </span><span class="se">\</span><span class="s2">(model.string) </span><span class="dl">"</span><span class="p">.</span><span class="nx">length</span>
+            <span class="p">}</span>
+        <span class="p">}</span>
+        <span class="c1">//1.添加数组</span>
+        <span class="kd">let</span> <span class="nx">itemModel</span> <span class="o">=</span> <span class="nx">ReleaseContentDataModel</span><span class="p">()</span>
+        <span class="nx">itemModel</span><span class="p">.</span><span class="nx">location</span> <span class="o">=</span> <span class="nx">fullModel</span><span class="p">.</span><span class="nx">location</span>
+        <span class="nx">itemModel</span><span class="p">.</span><span class="nx">length</span> <span class="o">=</span> <span class="dl">"</span><span class="s2"> </span><span class="se">\</span><span class="s2">(model.string)</span><span class="dl">"</span><span class="p">.</span><span class="nx">length</span>
+        <span class="nx">itemModel</span><span class="p">.</span><span class="nx">string</span> <span class="o">=</span> <span class="dl">"</span><span class="s2"> </span><span class="se">\</span><span class="s2">(model.string) </span><span class="dl">"</span>
+        <span class="nx">itemModel</span><span class="p">.</span><span class="nx">type</span> <span class="o">=</span> <span class="nx">model</span><span class="p">.</span><span class="nx">type</span>
+        <span class="nx">itemModel</span><span class="p">.</span><span class="nx">code</span> <span class="o">=</span> <span class="nx">model</span><span class="p">.</span><span class="nx">code</span>
+        <span class="nx">itemModel</span><span class="p">.</span><span class="nx">id</span> <span class="o">=</span> <span class="nx">model</span><span class="p">.</span><span class="nx">id</span>
+        <span class="nx">itemModel</span><span class="p">.</span><span class="nx">url</span> <span class="o">=</span> <span class="nx">model</span><span class="p">.</span><span class="nx">url</span>
+        <span class="nx">modelArray</span><span class="p">.</span><span class="nx">append</span><span class="p">(</span><span class="nx">itemModel</span><span class="p">)</span>
+
+        <span class="c1">//2.数据源内tag数组添加元素</span>
+        <span class="nx">fullModel</span><span class="p">.</span><span class="nx">range</span><span class="p">.</span><span class="nx">append</span><span class="p">(</span><span class="nx">NSRange</span><span class="p">(</span><span class="nx">location</span><span class="p">:</span> <span class="nx">fullModel</span><span class="p">.</span><span class="nx">location</span><span class="p">,</span> <span class="nx">length</span><span class="p">:</span>  <span class="dl">"</span><span class="s2"> </span><span class="se">\</span><span class="s2">(model.string) </span><span class="dl">"</span><span class="p">.</span><span class="nx">length</span><span class="p">))</span>
+        <span class="c1">//3.取出location两边的字符串进行拼接</span>
+        <span class="kd">let</span> <span class="nx">style</span> <span class="o">=</span> <span class="nx">NSMutableParagraphStyle</span><span class="p">()</span>
+        <span class="nx">style</span><span class="p">.</span><span class="nx">lineBreakMode</span> <span class="o">=</span> <span class="p">.</span><span class="nx">byCharWrapping</span>
+        
+        <span class="kd">let</span> <span class="nx">tagString</span><span class="p">:</span> <span class="nx">NSMutableAttributedString</span> <span class="o">=</span> <span class="nx">NSMutableAttributedString</span><span class="p">(</span><span class="nx">string</span><span class="p">:</span> <span class="dl">"</span><span class="s2"> </span><span class="se">\</span><span class="s2">(model.string)</span><span class="dl">"</span><span class="p">,</span> <span class="nx">attributes</span><span class="p">:</span> <span class="p">[</span><span class="nx">NSAttributedString</span><span class="p">.</span><span class="nx">Key</span><span class="p">.</span><span class="nx">foregroundColor</span><span class="p">:</span><span class="nx">UIColor</span><span class="p">(</span><span class="nx">hexString</span><span class="p">:</span> <span class="dl">"</span><span class="s2">#497BF2</span><span class="dl">"</span><span class="p">),</span><span class="nx">NSAttributedString</span><span class="p">.</span><span class="nx">Key</span><span class="p">.</span><span class="nx">font</span><span class="p">:</span> <span class="nx">QMFontFit</span><span class="p">(</span><span class="nx">size</span><span class="p">:</span> <span class="mi">14</span><span class="p">),</span><span class="nx">NSAttributedString</span><span class="p">.</span><span class="nx">Key</span><span class="p">.</span><span class="nx">link</span><span class="p">:</span> <span class="dl">"</span><span class="s2"> </span><span class="se">\</span><span class="s2">(model.string) </span><span class="dl">"</span><span class="p">.</span><span class="nx">addingPercentEncoding</span><span class="p">(</span><span class="nx">withAllowedCharacters</span><span class="p">:</span> <span class="p">.</span><span class="nx">urlFragmentAllowed</span><span class="p">)</span><span class="o">!</span><span class="p">])</span>
+        <span class="kd">let</span> <span class="nx">spaceString</span><span class="p">:</span> <span class="nx">NSMutableAttributedString</span> <span class="o">=</span> <span class="nx">NSMutableAttributedString</span><span class="p">(</span><span class="nx">string</span><span class="p">:</span> <span class="dl">"</span><span class="s2"> </span><span class="dl">"</span><span class="p">,</span> <span class="nx">attributes</span><span class="p">:</span> <span class="p">[</span><span class="nx">NSAttributedString</span><span class="p">.</span><span class="nx">Key</span><span class="p">.</span><span class="nx">foregroundColor</span><span class="p">:</span><span class="nx">UIColor</span><span class="p">(</span><span class="nx">hexString</span><span class="p">:</span> <span class="dl">"</span><span class="s2">#666666</span><span class="dl">"</span><span class="p">),</span><span class="nx">NSAttributedString</span><span class="p">.</span><span class="nx">Key</span><span class="p">.</span><span class="nx">font</span><span class="p">:</span> <span class="nx">QMFontFit</span><span class="p">(</span><span class="nx">size</span><span class="p">:</span> <span class="mi">14</span><span class="p">)])</span>
+        <span class="nx">richTextView</span><span class="p">.</span><span class="nx">textStorage</span><span class="p">.</span><span class="nx">insert</span><span class="p">(</span><span class="nx">tagString</span><span class="p">,</span> <span class="nx">at</span><span class="p">:</span> <span class="nx">richTextView</span><span class="p">.</span><span class="nx">selectedRange</span><span class="p">.</span><span class="nx">location</span><span class="p">)</span>
+        <span class="nx">richTextView</span><span class="p">.</span><span class="nx">textStorage</span><span class="p">.</span><span class="nx">insert</span><span class="p">(</span><span class="nx">spaceString</span><span class="p">,</span> <span class="nx">at</span><span class="p">:</span> <span class="nx">richTextView</span><span class="p">.</span><span class="nx">selectedRange</span><span class="p">.</span><span class="nx">location</span> <span class="o">+</span> <span class="dl">"</span><span class="s2"> </span><span class="se">\</span><span class="s2">(model.string)</span><span class="dl">"</span><span class="p">.</span><span class="nx">length</span><span class="p">)</span>
+        <span class="nx">richTextView</span><span class="p">.</span><span class="nx">textStorage</span><span class="p">.</span><span class="nx">addAttributes</span><span class="p">([</span><span class="nx">NSAttributedString</span><span class="p">.</span><span class="nx">Key</span><span class="p">.</span><span class="nx">paragraphStyle</span> <span class="p">:</span> <span class="nx">style</span><span class="p">],</span> <span class="nx">range</span><span class="p">:</span> <span class="nx">NSRange</span><span class="p">(</span><span class="nx">location</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="nx">length</span><span class="p">:</span> <span class="nx">richTextView</span><span class="p">.</span><span class="nx">textStorage</span><span class="p">.</span><span class="nx">string</span><span class="p">.</span><span class="nx">length</span><span class="p">))</span>
+        
+        <span class="nx">richTextView</span><span class="p">.</span><span class="nx">selectedRange</span> <span class="o">=</span> <span class="nx">NSRange</span><span class="p">(</span><span class="nx">location</span><span class="p">:</span> <span class="nx">fullModel</span><span class="p">.</span><span class="nx">location</span> <span class="o">+</span> <span class="dl">"</span><span class="s2"> </span><span class="se">\</span><span class="s2">(model.string) </span><span class="dl">"</span><span class="p">.</span><span class="nx">length</span><span class="p">,</span> <span class="nx">length</span><span class="p">:</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="k">if</span> <span class="kd">let</span> <span class="nx">callBack</span> <span class="o">=</span> <span class="nb">self</span><span class="p">.</span><span class="nx">changeFrameBlock</span><span class="p">{</span>
+            <span class="nx">callBack</span><span class="p">()</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+</code></pre></div></div>
+<p>上面的注释应该写清楚了主要的思路。
+插入图片的核心代码如下：</p>
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code>        <span class="c1">//不让图片变形</span>
+        <span class="kd">let</span> <span class="nx">size</span> <span class="o">=</span> <span class="nx">getImageSize</span><span class="p">(</span><span class="nx">image</span><span class="p">:</span> <span class="nx">image</span><span class="p">)</span>
+        <span class="kd">let</span> <span class="nx">imgHeight</span> <span class="o">=</span> <span class="p">(</span><span class="nx">kScreenWidth</span> <span class="o">-</span> <span class="mi">40</span><span class="p">)</span> <span class="o">*</span> <span class="nx">size</span><span class="p">.</span><span class="nx">height</span> <span class="o">/</span> <span class="nx">size</span><span class="p">.</span><span class="nx">width</span>
+        <span class="kd">let</span> <span class="nx">imgWidth</span> <span class="o">=</span> <span class="nx">kScreenWidth</span> <span class="o">-</span> <span class="mi">40</span>
+        
+        <span class="kd">let</span> <span class="nx">attachment</span> <span class="o">=</span> <span class="nx">NSTextAttachment</span><span class="p">()</span>
+        <span class="nx">attachment</span><span class="p">.</span><span class="nx">image</span> <span class="o">=</span> <span class="nx">image</span>
+        <span class="nx">attachment</span><span class="p">.</span><span class="nx">bounds</span> <span class="o">=</span> <span class="nx">CGRect</span><span class="p">(</span><span class="nx">x</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="nx">y</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="nx">width</span><span class="p">:</span> <span class="nx">imgWidth</span><span class="p">,</span> <span class="nx">height</span><span class="p">:</span> <span class="nx">imgHeight</span><span class="p">)</span>
+        <span class="kd">let</span> <span class="nx">attStr</span> <span class="o">=</span> <span class="nx">NSAttributedString</span><span class="p">(</span><span class="nx">attachment</span><span class="p">:</span> <span class="nx">attachment</span><span class="p">)</span>
+        
+        <span class="kd">let</span> <span class="nx">style</span> <span class="o">=</span> <span class="nx">NSMutableParagraphStyle</span><span class="p">()</span>
+        <span class="nx">style</span><span class="p">.</span><span class="nx">lineBreakMode</span> <span class="o">=</span> <span class="p">.</span><span class="nx">byCharWrapping</span>
+        <span class="kd">let</span> <span class="nx">spaceString</span><span class="p">:</span> <span class="nx">NSMutableAttributedString</span> <span class="o">=</span> <span class="nx">NSMutableAttributedString</span><span class="p">(</span><span class="nx">string</span><span class="p">:</span> <span class="dl">"</span><span class="se">\n</span><span class="dl">"</span><span class="p">,</span> <span class="nx">attributes</span><span class="p">:</span> <span class="p">[</span><span class="nx">NSAttributedString</span><span class="p">.</span><span class="nx">Key</span><span class="p">.</span><span class="nx">foregroundColor</span><span class="p">:</span><span class="nx">UIColor</span><span class="p">(</span><span class="nx">hexString</span><span class="p">:</span> <span class="dl">"</span><span class="s2">#666666</span><span class="dl">"</span><span class="p">),</span><span class="nx">NSAttributedString</span><span class="p">.</span><span class="nx">Key</span><span class="p">.</span><span class="nx">font</span><span class="p">:</span> <span class="nx">QMFontFit</span><span class="p">(</span><span class="nx">size</span><span class="p">:</span> <span class="mi">14</span><span class="p">)])</span>
+        <span class="nx">richTextView</span><span class="p">.</span><span class="nx">textStorage</span><span class="p">.</span><span class="nx">insert</span><span class="p">(</span><span class="nx">attStr</span><span class="p">,</span> <span class="nx">at</span><span class="p">:</span> <span class="nx">richTextView</span><span class="p">.</span><span class="nx">selectedRange</span><span class="p">.</span><span class="nx">location</span><span class="p">)</span>
+        <span class="nx">richTextView</span><span class="p">.</span><span class="nx">textStorage</span><span class="p">.</span><span class="nx">insert</span><span class="p">(</span><span class="nx">spaceString</span><span class="p">,</span> <span class="nx">at</span><span class="p">:</span> <span class="nx">richTextView</span><span class="p">.</span><span class="nx">selectedRange</span><span class="p">.</span><span class="nx">location</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="nx">richTextView</span><span class="p">.</span><span class="nx">textStorage</span><span class="p">.</span><span class="nx">addAttributes</span><span class="p">([</span><span class="nx">NSAttributedString</span><span class="p">.</span><span class="nx">Key</span><span class="p">.</span><span class="nx">paragraphStyle</span> <span class="p">:</span> <span class="nx">style</span><span class="p">],</span> <span class="nx">range</span><span class="p">:</span> <span class="nx">NSRange</span><span class="p">(</span><span class="nx">location</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="nx">length</span><span class="p">:</span> <span class="nx">richTextView</span><span class="p">.</span><span class="nx">textStorage</span><span class="p">.</span><span class="nx">string</span><span class="p">.</span><span class="nx">length</span><span class="p">))</span>
+</code></pre></div></div>
+<p>至此插入标签所有方法完成。</p>
+
+<h3 id="第四步-处理增加删除">第四步: 处理增加删除</h3>
+<p>现在问题来了，在内容中间插入文字及删除文字和删除标签还没处理，一旦插入文字我们所有存储的的文字需要对应调整location，见最上面的代码。
+所以修改TextView代理方法 shouldChangeTextIn, 在里面做location的遍历修改处理。
+编译运行一下代码，发现了一个重要的问题，emoji的占位符和普通文字不同，会导致标签错乱闪退，那怎么办呢？
+搞不定了去查stackoverflow，了解到utf16.count。想了一下可以通过这个笨方法拿到具体的确定占位符，方法如下:</p>
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code> <span class="nx">func</span> <span class="nx">setEmojiStringLength</span><span class="p">(</span><span class="nx">text</span><span class="p">:</span> <span class="nb">String</span> <span class="o">=</span> <span class="dl">""</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nx">Int</span> <span class="p">{</span>
+        <span class="kd">var</span> <span class="nx">i</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="kd">var</span> <span class="nx">length</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">for</span> <span class="nx">char</span> <span class="k">in</span> <span class="nx">text</span> <span class="o">==</span> <span class="dl">""</span> <span class="p">?</span> <span class="nx">richTextView</span><span class="p">.</span><span class="nx">text</span> <span class="p">:</span> <span class="nx">text</span> <span class="p">{</span>
+            <span class="k">if</span> <span class="nx">contentRange</span><span class="p">.</span><span class="nx">location</span> <span class="o">&gt;</span> <span class="nx">i</span> <span class="p">{</span>
+                <span class="nx">i</span> <span class="o">+=</span> <span class="nx">char</span><span class="p">.</span><span class="nx">utf16</span><span class="p">.</span><span class="nx">count</span>
+                <span class="nx">length</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+                <span class="k">break</span>
+            <span class="p">}</span>
+        <span class="p">}</span>
+        <span class="k">return</span> <span class="nx">length</span>
+    <span class="p">}</span>
+</code></pre></div></div>
+<p>到现在为止基本上需求都满足了，又特么发现了一个问题…. 删除标签要整体删除！以及拖动光标不能在标签内插入文字。这个需求漏掉了。</p>
+
+<h3 id="第五步-处理标签区域删除等细节">第五步: 处理标签区域删除等细节</h3>
+<p>关键代码来了：</p>
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">if</span> <span class="nx">richTextView</span><span class="p">.</span><span class="nx">markedTextRange</span> <span class="o">==</span> <span class="nx">nil</span> <span class="p">{</span>
+    <span class="k">for</span> <span class="nx">item</span> <span class="k">in</span> <span class="nx">modelArray</span> <span class="p">{</span>
+        <span class="k">if</span> <span class="nx">textView</span><span class="p">.</span><span class="nx">selectedRange</span><span class="p">.</span><span class="nx">location</span> <span class="o">&lt;=</span> <span class="nx">item</span><span class="p">.</span><span class="nx">location</span> <span class="o">+</span> <span class="nx">item</span><span class="p">.</span><span class="nx">length</span>  <span class="o">&amp;&amp;</span> <span class="nx">textView</span><span class="p">.</span><span class="nx">selectedRange</span><span class="p">.</span><span class="nx">location</span> <span class="o">&gt;</span> <span class="nx">item</span><span class="p">.</span><span class="nx">location</span> <span class="p">{</span>
+            <span class="nx">textView</span><span class="p">.</span><span class="nx">selectedRange</span> <span class="o">=</span> <span class="nx">NSRange</span><span class="p">(</span><span class="nx">location</span><span class="p">:</span> <span class="nx">item</span><span class="p">.</span><span class="nx">location</span> <span class="o">+</span> <span class="nx">item</span><span class="p">.</span><span class="nx">length</span><span class="p">,</span> <span class="nx">length</span><span class="p">:</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div></div>
+<p>一旦选中区域在数据里面包含了，直接定位整体区域块。</p>
+
+<p>关于删除区域，一方面要删除UI层面显示的文字，另一方面要删除对应区域的数据源，并且删除完毕后继续动态修改后面数据源的location。</p>
+
+<p>ok实现完毕，虽然感觉有些许粗糙，但是需求基本满足了。后面有时间再拿CoreText搞一遍吧</p>
+
+<h2 id="结束">结束</h2>
+
+<p>欢迎交流。</p>
+
+<p>—— Ade</p>
+
+:ET

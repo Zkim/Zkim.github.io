@@ -1,0 +1,51 @@
+---
+layout:     post
+title:      "macos 软件"
+subtitle:   " \"我使用频率很高的软件\""
+# date:       2018-06-07 12:00:00
+author:     "Ade"
+header-img: "img/zujian.jpg"
+catalog: true
+featured-condition-size: 2
+tags:
+    - 生活
+---
+
+> “Yeah It's on. ”
+
+
+## 背景
+
+就梳理一下，把我在使用的好用软件推荐一下。
+
+<p id = "build"></p>
+---
+
+## 推荐开始
+
+1. [Zoommy](https://zoommyapp.com/) 我找素材图基本上都在这个软件上面找，blog里面好多图都来自于这款软件 
+
+2. [PPDuck](http://ppduck.com/) 作为前端开发者，必然要处理资源文件的压缩，这款软件巨方便...
+
+3. [iterm2 + oh-my-zsh](https://iterm2.com) , 虽说是个人习惯，但是用过的都说好。
+
+4. [Alfred](https://www.alfredapp.com) 搜索工具巨鸡儿好用！
+
+5. Dash 看文档必备，这个大家应该都知道吧，作为付费用户的推荐。
+
+6. MWeb Lite, Marmdown编辑器这个见仁见智，我是用习惯了。
+
+7. EdrawMax, 做各种流程图，类型很全，上手简单。作为付费用户，也是个人习惯，线上编辑的也有，我更习惯这个，模板巨多，同步功能强大。
+
+8. Go2shell, 这个开发人员不用说了吧，巨方便的小插件，用过都说好。
+
+9. 科学上网可以私聊我一起交流。暂时想到这些，不定期补充吧，里面有的没加超链，同志们可以去AppStore翻一翻，应该都不难找。
+
+
+## 结束
+
+欢迎交流。
+
+—— Ade 
+
+

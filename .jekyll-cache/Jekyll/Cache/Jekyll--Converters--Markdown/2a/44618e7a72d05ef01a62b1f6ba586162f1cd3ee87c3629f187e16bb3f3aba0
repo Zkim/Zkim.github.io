@@ -1,0 +1,52 @@
+I"�<blockquote>
+  <p>“Yeah It’s on. ”</p>
+</blockquote>
+
+<h2 id="前言">前言</h2>
+
+<p>Aden 的 Blog 就这么开通了。</p>
+
+<p>我准备好好写点东西了。</p>
+
+<p>作为一个程序员， Blog 这种轮子要是挂在大众博客程序上就太没意思了。一是觉得大部分 Blog 服务都太丑，二是觉得不能随便定制不好玩。之前因为太懒没有折腾，再就是公司里面太忙，没空沉下心写点东西。结果就一直连个写 Blog 的地儿都没有。</p>
+
+<hr />
+
+<h2 id="正文">正文</h2>
+
+<p>接下来说说搭建这个博客的技术细节。</p>
+
+<p>正好之前就有关注过 <a href="https://pages.github.com/">GitHub Pages</a> + <a href="http://jekyllrb.com/">Jekyll</a> 快速 Building Blog 的技术方案，非常轻松时尚。</p>
+
+<p>其优点非常明显：</p>
+
+<ul>
+  <li><strong>Markdown</strong> 带来的优雅写作体验</li>
+  <li>非常熟悉的 Git workflow ，<strong>Git Commit 即 Blog Post</strong></li>
+  <li>利用 GitHub Pages 的域名和免费无限空间，不用自己折腾主机
+    <ul>
+      <li>如果需要自定义域名，也只需要简单改改 DNS 加个 CNAME 就好了</li>
+    </ul>
+  </li>
+  <li>Jekyll 的自定制非常容易，基本就是个模版引擎</li>
+</ul>
+
+<p>本来觉得最大的缺点可能是 GitHub 在国内访问起来太慢，但是可以科学上网嘛，链接我就不挂了，不会的同学可以私我交流。</p>
+
+<hr />
+
+<p>配置的过程中也没遇到什么坑，基本就是 Git 的流程，相当顺手</p>
+
+<p>大的 Jekyll 主题上直接 fork 了 Clean Blog（这个主题也相当有名，就不多赘述了。唯一的缺点大概就是没有标签支持，于是我给它补上了。）</p>
+
+<p>本地调试环境需要 <code class="language-plaintext highlighter-rouge">gem install jekyll</code></p>
+
+<h2 id="后记">后记</h2>
+
+<p>回顾这个博客的诞生，纯粹是出于个人兴趣。</p>
+
+<p>如果你恰好逛到了这里，希望你也能喜欢这个博客。</p>
+
+<p>—— Ade</p>
+
+:ET

@@ -1,0 +1,31 @@
+---
+layout:     post
+title:      "开发小Tips"
+subtitle:   " \"记录一下\""
+# date:       2018-06-07 12:00:00
+author:     "Ade"
+header-img: "img/zujian.jpg"
+catalog: true
+featured-condition-size: 2
+tags:
+    - 技术
+---
+
+> “Yeah It's on. ”
+
+
+## 正文
+*  @_silgen_name("方法名") 无需桥接OC 不需要引用 即可在swift内实现调用OC方法
+*  swift判等：protocol Equatable {
+    func ==(lhs: Self, rhs: Self) -> Bool
+}
+*  associatedtype 泛型占位
+
+
+## 结束
+
+欢迎交流。
+
+—— Ade 
+
+

@@ -1,0 +1,166 @@
+---
+layout:     post
+title:      "native富文本编辑器"
+subtitle:   " \"实现iOS原生富文本编辑器\""
+# date:       2018-06-07 12:00:00
+author:     "Ade"
+header-img: "img/zujian.jpg"
+catalog: true
+featured-condition-size: 2
+tags:
+    - iOS
+---
+
+> “Yeah It's on. ”
+
+
+## 背景
+
+由于公司新业务需要用富文本编辑器实现插入#标签 、@XX 、$股票、Link、以及图片功能，就研究了一下方案。
+1. 调研了四种方案，分别是TextView,CoreText,TableView,H5实现做功能桥接。
+2. 由于业务上安卓先行，选型是原生实现所以抛弃了桥接H5方案。
+3. 安卓为了省事找了一个第三方去实现，就是原生插入编辑，如果用tableView实现，UI看起来就两端不同了所以也暂时抛弃。
+4. 思考了一下TextView及CoreText的优缺点，TextView实现效率上会比CoreText低，出问题的概率更高，实现时间短，CoreText实现效率高，更偏向底层上下文绘制，因为coreText中大量的调用c的方法，如果新人接手业务成本高。
+5. 所以暂时选择使用UITextView造个轮子，不使用第三方的原因是怕有坑到时候搞起来麻烦。后面有时间会用CoreText再搞一个出来。
+
+<p id = "build"></p>
+---
+
+## 正文
+
+### 第一步: 搞一个万能的model
+为什么要搞这个model?程序员都懒吧，把所有插入的标签需求数据存进去，如下：
+```js
+@objcMembers
+class ReleaseContentDataModel: NSObject {
+    var location: Int = 0
+    var length: Int = 0
+    var type = ""
+    var json: [String : Any] = [:]
+    var string = ""
+    var url = ""
+    var renderingString = ""
+    var id: Int = 0
+    var code = ""
+    var image: UIImage = UIImage()
+    var imageBounds: CGSize = CGSize.zero
+}
+```
+为什么有这么多乱七八糟类型和数据，都是泪，业务上不断调整需求导致model越来越壮了....不过现在应该是个基本的完全体了。
+这个model的主要功能是：
+1、给每个需要和发布页面交互的vc提供接口
+2、给自己的反解析提供数据结构，避免哪里都有乱七八糟。反解析的需求是通过服务器字符串解析成我们需要的结构，然后绘制成UI,而上面的model并没有和服务器交互，使我们本地生成的，所以在开发时候要预留处理方法。
+3、最重要的就是给自己的UI提供数据进行解析
+
+### 第二步: 封装TextView
+我的TextView是继承RSKPlaceholderTextView的，主要是因为懒，Placeholder样式什么的懒得处理直接搞个第三方处理掉。
+给封装的TextView提供一个参数modelArray，用来存储绘制的所有标签内容
+
+### 第三步: 提供插入绘制接口
+现有有四种标签和图片样式，由于图片的处理和标签拼接文字方式不同，所以单独拉出来一个方法。
+```js
+func setContentText(model: ReleaseContentDataModel) {
+        //0.判断是否为插入，如果为插入，后面的tag需要同时location 增加为location+length
+        for item in modelArray {
+            if fullModel.location <= item.location {
+                item.location = item.location + " \(model.string) ".length
+            }
+        }
+        //1.添加数组
+        let itemModel = ReleaseContentDataModel()
+        itemModel.location = fullModel.location
+        itemModel.length = " \(model.string)".length
+        itemModel.string = " \(model.string) "
+        itemModel.type = model.type
+        itemModel.code = model.code
+        itemModel.id = model.id
+        itemModel.url = model.url
+        modelArray.append(itemModel)
+
+        //2.数据源内tag数组添加元素
+        fullModel.range.append(NSRange(location: fullModel.location, length:  " \(model.string) ".length))
+        //3.取出location两边的字符串进行拼接
+        let style = NSMutableParagraphStyle()
+        style.lineBreakMode = .byCharWrapping
+        
+        let tagString: NSMutableAttributedString = NSMutableAttributedString(string: " \(model.string)", attributes: [NSAttributedString.Key.foregroundColor:UIColor(hexString: "#497BF2"),NSAttributedString.Key.font: QMFontFit(size: 14),NSAttributedString.Key.link: " \(model.string) ".addingPercentEncoding(withAllowedCharacters: .urlFragmentAllowed)!])
+        let spaceString: NSMutableAttributedString = NSMutableAttributedString(string: " ", attributes: [NSAttributedString.Key.foregroundColor:UIColor(hexString: "#666666"),NSAttributedString.Key.font: QMFontFit(size: 14)])
+        richTextView.textStorage.insert(tagString, at: richTextView.selectedRange.location)
+        richTextView.textStorage.insert(spaceString, at: richTextView.selectedRange.location + " \(model.string)".length)
+        richTextView.textStorage.addAttributes([NSAttributedString.Key.paragraphStyle : style], range: NSRange(location: 0, length: richTextView.textStorage.string.length))
+        
+        richTextView.selectedRange = NSRange(location: fullModel.location + " \(model.string) ".length, length: 0)
+        if let callBack = self.changeFrameBlock{
+            callBack()
+        }
+    }
+```
+上面的注释应该写清楚了主要的思路。
+插入图片的核心代码如下：
+```js
+        //不让图片变形
+        let size = getImageSize(image: image)
+        let imgHeight = (kScreenWidth - 40) * size.height / size.width
+        let imgWidth = kScreenWidth - 40
+        
+        let attachment = NSTextAttachment()
+        attachment.image = image
+        attachment.bounds = CGRect(x: 0, y: 0, width: imgWidth, height: imgHeight)
+        let attStr = NSAttributedString(attachment: attachment)
+        
+        let style = NSMutableParagraphStyle()
+        style.lineBreakMode = .byCharWrapping
+        let spaceString: NSMutableAttributedString = NSMutableAttributedString(string: "\n", attributes: [NSAttributedString.Key.foregroundColor:UIColor(hexString: "#666666"),NSAttributedString.Key.font: QMFontFit(size: 14)])
+        richTextView.textStorage.insert(attStr, at: richTextView.selectedRange.location)
+        richTextView.textStorage.insert(spaceString, at: richTextView.selectedRange.location + 1)
+        richTextView.textStorage.addAttributes([NSAttributedString.Key.paragraphStyle : style], range: NSRange(location: 0, length: richTextView.textStorage.string.length))
+```
+至此插入标签所有方法完成。
+
+
+### 第四步: 处理增加删除
+现在问题来了，在内容中间插入文字及删除文字和删除标签还没处理，一旦插入文字我们所有存储的的文字需要对应调整location，见最上面的代码。
+所以修改TextView代理方法 shouldChangeTextIn, 在里面做location的遍历修改处理。
+编译运行一下代码，发现了一个重要的问题，emoji的占位符和普通文字不同，会导致标签错乱闪退，那怎么办呢？
+搞不定了去查stackoverflow，了解到utf16.count。想了一下可以通过这个笨方法拿到具体的确定占位符，方法如下:
+```js
+ func setEmojiStringLength(text: String = "") -> Int {
+        var i = 0
+        var length = 0
+        for char in text == "" ? richTextView.text : text {
+            if contentRange.location > i {
+                i += char.utf16.count
+                length += 1
+            } else {
+                break
+            }
+        }
+        return length
+    }
+```
+到现在为止基本上需求都满足了，又特么发现了一个问题.... 删除标签要整体删除！以及拖动光标不能在标签内插入文字。这个需求漏掉了。
+
+### 第五步: 处理标签区域删除等细节
+关键代码来了：
+```js
+if richTextView.markedTextRange == nil {
+    for item in modelArray {
+        if textView.selectedRange.location <= item.location + item.length  && textView.selectedRange.location > item.location {
+            textView.selectedRange = NSRange(location: item.location + item.length, length: 0)
+        }
+    }
+}
+```
+一旦选中区域在数据里面包含了，直接定位整体区域块。
+
+关于删除区域，一方面要删除UI层面显示的文字，另一方面要删除对应区域的数据源，并且删除完毕后继续动态修改后面数据源的location。
+
+ok实现完毕，虽然感觉有些许粗糙，但是需求基本满足了。后面有时间再拿CoreText搞一遍吧
+
+## 结束
+
+欢迎交流。
+
+—— Ade 
+
+

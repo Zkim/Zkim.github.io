@@ -1,0 +1,45 @@
+I"�<blockquote>
+  <p>“Yeah It’s on. ”</p>
+</blockquote>
+
+<h2 id="背景">背景</h2>
+
+<p>由于公司新业务需要用富文本编辑器实现插入#标签 、@XX 、$股票、Link、以及图片功能，就研究了一下方案。</p>
+<ol>
+  <li>调研了四种方案，分别是TextView,CoreText,TableView,H5实现做功能桥接。</li>
+  <li>由于业务上安卓先行，选型是原生实现所以抛弃了桥接H5方案。</li>
+  <li>安卓为了省事找了一个第三方去实现，就是原生插入编辑，如果用tableView实现，UI看起来就两端不同了所以也暂时抛弃。</li>
+  <li>思考了一下TextView及CoreText的优缺点，TextView实现效率上会比CoreText低，出问题的概率更高，实现时间短，CoreText实现效率高，更偏向底层上下文绘制，因为coreText中大量的调用c的方法，如果新人接手业务成本高。</li>
+  <li>所以暂时选择使用UITextView造个轮子，不使用第三方的原因是怕有坑到时候搞起来麻烦。后面有时间会用CoreText再搞一个出来。</li>
+</ol>
+
+<p id="build"></p>
+<hr />
+
+<h2 id="正文">正文</h2>
+
+<h3 id="第一步-搞一个万能的model">第一步: 搞一个万能的model</h3>
+<p>为什么要搞这个model?程序员都懒吧，把所有插入的标签需求数据存进去</p>
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">@</span><span class="nd">objcMembers</span>
+<span class="kd">class</span> <span class="nx">ReleaseContentDataModel</span><span class="p">:</span> <span class="nx">NSObject</span> <span class="p">{</span>
+    <span class="kd">var</span> <span class="nx">location</span><span class="p">:</span> <span class="nx">Int</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="kd">var</span> <span class="nx">length</span><span class="p">:</span> <span class="nx">Int</span>  <span class="o">=</span> <span class="mi">0</span>
+    <span class="kd">var</span> <span class="nx">type</span> <span class="o">=</span> <span class="dl">""</span>
+    <span class="kd">var</span> <span class="nx">json</span><span class="p">:</span> <span class="p">[</span><span class="nb">String</span> <span class="p">:</span> <span class="nx">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">[:]</span>
+    <span class="kd">var</span> <span class="nx">string</span> <span class="o">=</span> <span class="dl">""</span>
+    <span class="kd">var</span> <span class="nx">url</span> <span class="o">=</span> <span class="dl">""</span>
+    <span class="kd">var</span> <span class="nx">renderingString</span> <span class="o">=</span> <span class="dl">""</span>
+    <span class="kd">var</span> <span class="nx">id</span><span class="p">:</span> <span class="nx">Int</span>  <span class="o">=</span> <span class="mi">0</span>
+    <span class="kd">var</span> <span class="nx">code</span> <span class="o">=</span> <span class="dl">""</span>
+    <span class="kd">var</span> <span class="nx">image</span><span class="p">:</span> <span class="nx">UIImage</span> <span class="o">=</span> <span class="nx">UIImage</span><span class="p">()</span>
+    <span class="kd">var</span> <span class="nx">imageBounds</span><span class="p">:</span> <span class="nx">CGSize</span> <span class="o">=</span> <span class="nx">CGSize</span><span class="p">.</span><span class="nx">zero</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<h2 id="结束">结束</h2>
+
+<p>欢迎交流。</p>
+
+<p>—— Ade</p>
+
+:ET
