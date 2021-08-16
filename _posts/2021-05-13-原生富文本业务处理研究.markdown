@@ -95,7 +95,6 @@ func setContentText(model: ReleaseContentDataModel) {
         }
     }
 ```
-上面的注释应该写清楚了主要的思路。
 插入图片的核心代码如下：
 ```js
         //不让图片变形
@@ -122,9 +121,9 @@ func setContentText(model: ReleaseContentDataModel) {
 现在问题来了，在内容中间插入文字及删除文字和删除标签还没处理，一旦插入文字我们所有存储的的文字需要对应调整location，见最上面的代码。
 所以修改TextView代理方法 shouldChangeTextIn, 在里面做location的遍历修改处理。
 编译运行一下代码，发现了一个重要的问题，emoji的占位符和普通文字不同，会导致标签错乱闪退，那怎么办呢？
-搞不定了去查stackoverflow，了解到utf16.count。想了一下可以通过这个笨方法拿到具体的确定占位符，方法如下:
+搞不定了去查stackoverflow，了解到utf16.count。测试后发现可以通过这个笨方法拿到具体的确定占位符，方法如下:
 ```js
- func setEmojiStringLength(text: String = "") -> Int {
+ func getEmojiStringLength(text: String = "") -> Int {
         var i = 0
         var length = 0
         for char in text == "" ? richTextView.text : text {
