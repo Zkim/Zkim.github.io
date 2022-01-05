@@ -20,6 +20,25 @@ tags:
     func ==(lhs: Self, rhs: Self) -> Bool
 }
 *  associatedtype 泛型占位
+*  Xcode(13.2.1)版本对歧义命名有要求，例如:
+```js
+class Test: UIView {
+     public var cornerRadius: CGFloat {
+           get {
+               layer.cornerRadius
+           }
+           set {
+               layer.cornerRadius = newValue
+               updateCornerRadii()
+           }
+        }
+}
+```
+调用时候则会报错歧义。
+```js
+let test = Test()
+test.cornerRadius = 12
+```
 
 
 ## 结束
