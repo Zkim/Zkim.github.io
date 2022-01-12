@@ -1,0 +1,47 @@
+---
+layout:     post
+title:      "解决侧滑手势冲突"
+subtitle:   " \"记录一下\""
+# date:       2018-06-07 12:00:00
+author:     "Ade"
+header-img: "img/zujian.jpg"
+catalog: true
+featured-condition-size: 2
+tags:
+    - 技术
+---
+
+> “Yeah It's on. ”
+
+
+## 正文
+* 业务中遇到了一个场景，一个可横向滑动的scrollView嵌套两个可以侧滑删除的tableView，导致手势冲突，都知道解决事件穿透就用hitTest。话不多说上码。
+```js
+override func hitTest(_ point:CGPoint, with event:UIEvent?) -> UIView? {
+        let v = super.hitTest(point, with: event)
+        if let view = v {
+            if view.isKind(of: UIButton.self) {
+                return view
+            }
+        }
+        
+        let isHit = super.point(inside: point, with: event)
+        if let callBack = isResponseCallback {
+            callBack( isHit == true ? true : false)
+        }
+        return isHit == true ? self : nil
+    }
+```
+* 首先要过滤cell事件里面的各种事件，分别分配给事件拥有者，我的业务中只存在UIButton,所以进行一次过滤。
+* 然后就是通过point(inside: CGPoint, with: UIEvent?)方法获取手势是否在视图上操作，如果是，则屏蔽ScrollView上面的事件。
+* 完美解决。
+
+
+
+## 结束
+
+欢迎交流。
+
+—— Ade 
+
+
