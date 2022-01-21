@@ -1,0 +1,128 @@
+---
+layout:     post
+title:      "解决手机端做服务器与车机做局域网传输"
+subtitle:   " \"记录一下\""
+# date:       2022-01-21 16:00:00
+author:     "Ade"
+header-img: "img/zujian.jpg"
+catalog: true
+featured-condition-size: 2
+tags:
+    - 技术
+---
+
+> “Yeah It's on. ”
+
+
+## 正文
+* 业务中遇到了一个场景，需要在手机上开启服务监听，让车机系统连接手机局域网环境传输图片及视频，经过调研决定使用第三方框架swifter。
+* [swifer github地址](https://github.com/httpswift/swifter)
+* 实现代码如下，基本可以满足form表单提交需要
+```js
+    webUploader["/alert"] = { request in
+      //业务代码实现
+      return HttpResponse.ok(.json(jsonDataSuccess))
+    }
+```
+* 后面发现一种场景，需要和用户交互才返回response, 想了一些办法，最终解决方案如下：
+* 通过信号量来阻塞线程，提供用户交互时间
+```js
+    webUploader["/alert"] = { request in
+      let semaphore = DispatchSemaphore(value: 0)
+      var isPass = false
+      DispatchQueue.main.async {
+          self.showAlert { res in
+              isPass = res
+              semaphore.signal()
+          }
+      }
+      semaphore.wait()
+      return HttpResponse.ok(.json(jsonDataSuccess))
+    }
+```
+* 接下来发现有一个严重的问题，回调的request只有拿到结果才可以收到完整回调，不满足断点续传需求以及用户传输流的百分比进度
+* 讨论后决定，将文件塞在request.body中，文件信息放到header中，因为库的底层是socket,我们现在拿request的方式相当于不是同步处理。
+* 以及需要解决拿流的问题，决定不引用pod, 自己拓展一下三方库
+* 改动如下：
+```js
+    HttpRequest 类//新增一个参数socket
+    public var socket: Socket!
+
+    HttpParser 类//新增一个参数socket  
+    public func readHttpRequest(_ socket: Socket) throws -> HttpRequest {
+        //方法内部新增一个判断
+        if let contentType = contentTypeHeaderTokens.first, contentType == "multipart/form-data" || contentType == "application/x-www-form-urlencode" || contentType == "application/json" {
+            request.body = try appendBody(socket, size: contentLengthValue)
+        } else {
+            //如果走我们自定义传输方案，则将socket流传输到request
+            request.body = try appendBody(socket, size: contentLengthValue)
+            request.socket = socket
+        }
+    }
+```
+* 改动之后又发现了问题，文件流可以正常拿到，但是cpu运转直接飙到90%-110%
+* 而且传输速度变慢，继续查看源码的时候发现了，现有的swifter的技术方案，是一次性在内存中保存文件，不断执行写入操作，拿完data后传输给request
+* 所以如果我们在拿流的时候，其实并不需要写入body,直接使用流去进行文件操作即可。
+* 改动如下：
+```js
+    HttpParser 类//新增一个参数socket  
+    public func readHttpRequest(_ socket: Socket) throws -> HttpRequest {
+        //方法内部新增一个判断
+        if let contentType = contentTypeHeaderTokens.first, contentType == "multipart/form-data" || contentType == "application/x-www-form-urlencode" || contentType == "application/json" {
+            request.body = try appendBody(socket, size: contentLengthValue)
+        } else {
+            //如果走我们自定义传输方案，则将socket流传输到request
+            request.socket = socket
+        }
+    }
+```
+* 到此现有库的改动已完成，业务代码要根据socket进行调整
+* 改动如下：
+```js
+    webUploader["/upload"] = { request in
+        var contentLength: Int = Int(request.headers["content-length"] ?? "-1") ?? 0
+        let cachePath = NSSearchPathForDirectoriesInDomains(FileManager.SearchPathDirectory.documentDirectory,FileManager.SearchPathDomainMask.userDomainMask, true).first ?? ""
+        let fileName = request.headers["filename"] ?? ""
+        let url = "\(cachePath)/\(fileName)"
+        
+        if !FileManager.default.fileExists(atPath: url) {
+            FileManager.default.createFile(atPath: url, contents: nil, attributes: nil)
+        }
+        
+        if let fileHandle = FileHandle(forWritingAtPath: url) {
+            while contentLength > 0 {
+                do {
+                    var sourceData = Data()
+                    let buffer = try request.socket.read(length: HZHttpServer.bufferLength)
+                    //文件写入
+                    sourceData.append(buffer, count: buffer.count)
+                    fileHandle.seekToEndOfFile()
+                    fileHandle.write(sourceData)
+                    contentLength -= buffer.count
+                } catch {
+                    return HttpResponse.notFound
+                }
+            }
+            fileHandle.closeFile()
+        }
+        
+        if self.isPhoto(fileName) {
+            self.plusDataForImage(string: url)
+        } else if self.isMedia(fileName) {
+            self.plusDataForMedia(string: url)
+        }
+       
+        return HttpResponse.ok(.json(jsonDataSuccess))
+    }
+```
+* 改动完成后测试一下：传输过程中cpu占用率10%-20%，传输速度3M-5M
+* 逻辑基本完成。
+
+
+## 结束
+
+欢迎交流。
+
+—— Ade 
+
+
