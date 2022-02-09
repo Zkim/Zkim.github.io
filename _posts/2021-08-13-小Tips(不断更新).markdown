@@ -43,6 +43,18 @@ test.cornerRadius = 12
 ```js
 	AudioServicesPlaySystemSound(SystemSoundID(kSystemSoundID_Vibrate))
 ```
+*  关于CABasicAnimation动画处理
+*  设置属性时候注意设置isRemovedOnCompletion = false,如果未设置此属性会在切换页面时导致主线程动画丢失
+*  例子如下：
+```js
+	    let rotaionAniamtionAnima = CABasicAnimation(keyPath: "transform.rotation.z")
+        let num:CGFloat = .pi*(-3.5)
+        rotaionAniamtionAnima.toValue = num
+        rotaionAniamtionAnima.duration = 2
+        rotaionAniamtionAnima.repeatCount = MAXFLOAT
+        rotaionAniamtionAnima.isRemovedOnCompletion = false
+        backLayer.add(rotaionAniamtionAnima, forKey: "rotaionAniamtion")
+```
 
 
 
