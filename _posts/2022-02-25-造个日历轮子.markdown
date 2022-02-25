@@ -1,0 +1,207 @@
+---
+layout:     post
+title:      "造个日历轮子"
+subtitle:   " \"记录一下\""
+# date:       2022-01-21 16:00:00
+author:     "Ade"
+header-img: "img/zujian.jpg"
+catalog: true
+featured-condition-size: 2
+tags:
+    - 技术
+---
+
+> “Yeah It's on. ”
+
+
+## 正文
+* 写需求的时候遇到一个日历界面，需要显示当前天数前固定90天的日历。
+* 实现最简单的想法就是一个collectionView + DataSource
+* 首先构造几个函数，用来处理DataSource
+```js
+    //第一个不固定日期的DataSource
+    private var dayOffsetArr: [String] = []
+    //除第一个外日期的DataSource
+    private lazy var dayArr: [String] = {
+        var arr = [String]()
+        for i in 1...31 {
+            arr.append(String(format: "%02d", i))
+        }
+        return arr
+    }()
+    //月份的DataSource
+    private lazy var monthArr: [String] = {
+        var arr = [String]()
+        for i in 1...12 {
+            arr.append(String(format: "%02d", i))
+        }
+        return arr
+    }()
+    //年份的DataSource
+    private lazy var yearArr: [String] = {
+        var arr = [String]()
+        let year = HZUtils.getCurrentTime("yyyy") //获取当前年份
+        for i in 0...1 {
+            arr.append("\(Int(year)!-i)")
+        }
+        return arr
+    }()
+```
+* 为什么日期需要两个DataSource？
+* 我的思路是，由于除了第一个月份外其他月份都是从一号开始的，只有第一个月可能出现的日期是不为一号
+* 除第一个月份外，其余月份只要拿到每月的日子进行渲染就可以了。
+* 只有第一个月份和最后一个月份有些特殊，最后一个月份是只显示当前的天数即可。
+* 下面是构造DataSource所需的其他字段
+```js
+    //保存最后一个月的天数
+    private var dayIndex = 0
+    //元祖.0为年份，.1为月份 补充：timeArray为每个月的年份和月份的index,即：（0,0）会映射为：（2022.2）
+    private var timeArray: [(Int, Int)] = []
+    //临时变量，用来渲染collectionView
+    private var monthCount = 0
+```
+* 接下来处理数据的初始化，以及其他处理DataSource的函数：
+* 函数如下：
+```js
+    // 处理timeArray
+    func getDate(_ limit: Int = 0) -> (Int, Int) {
+        // 获取当前时间 format
+        let monthString = HZUtils.getCurrentTime("MM")
+        if let month = Int(monthString) {
+            if month - limit <= 0 {
+                let count = month - limit
+                return (1 ,12 + count - 1)
+            } else {
+                return (0 ,month - limit - 1)
+            }
+        } else {
+            return (0, 0)
+        }
+    }
+    // 获取当前年月的Date 为每月的空数据个数做准备
+    func getMonth(_ limit: Int = 0) -> Date {
+        var components = DateComponents.init()
+        components.year = Int(yearArr[timeArray[monthCount - limit].0]) ?? 0
+        components.month = Int(monthArr[timeArray[monthCount - limit].1]) ?? 0
+        return Calendar.current.date(from: components) ?? Date()
+    }
+    // 处理每月的空数据， 由于得到的结果是从星期一开始，业务是周日开始，所以需要+1
+    func setNilDate(_ limit: Int = 0) -> Int {
+        let count =  HZUtils.getDateWeekday(date: getMonth(monthCount - limit))
+        return count + 1
+    }
+    ///当天的日期
+    func getOffsetForMonth() -> Int {
+        let day = HZUtils.getCurrentTime("dd")
+        return Int(day) ?? 0
+    }
+    ///差额天数
+    func getOffsetDay() -> Int {
+        let count = 90 - (HZUtils.getDays(Int(yearArr[timeArray[2].0])!, Int(monthArr[timeArray[2].1])!) + HZUtils.getDays(Int(yearArr[timeArray[1].0])!, Int(monthArr[timeArray[1].1])!) + getOffsetForMonth())
+        return count
+    }
+```
+* 初始化数据如下（不赘述了，就是为前置月已经后置月的数据坐准备）：
+```js
+    for i in 0...2 {
+        timeArray.append(getDate(i))
+    }
+    let offsetDay = getOffsetDay()
+    if offsetDay > 0 {
+        timeArray.append(getDate(3))
+        monthCount = 3
+    } else {
+        monthCount = 2
+    }
+    
+    dayIndex = HZUtils.getDays(Int(yearArr[timeArray[3].0])!, Int(monthArr[timeArray[3].1])!)
+    for i in 1...dayIndex {
+        dayOffsetArr.append(String(format: "%02d", i))
+    }
+    while dayOffsetArr.count > offsetDay  {
+        dayOffsetArr.removeFirst()
+    }
+```
+* 到此数据基本准备完成：
+* 下面是控件渲染
+```js
+    func numberOfSections(in collectionView: UICollectionView) -> Int {
+        return timeArray.count
+    }
+    
+    func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int {
+        if timeArray.count == 0 {
+            return 0
+        }
+        var num = 0
+        num += setNilDate(monthCount - section)
+        num = num >= 7 ? num - 7 : num
+        if section == 0 {
+            num += dayIndex - getOffsetDay()
+            num = num % 7
+            num += getOffsetDay()
+        } else if section + 1 != timeArray.count {
+            num += HZUtils.getDays(Int(yearArr[timeArray[monthCount - section].0])!, Int(monthArr[timeArray[monthCount - section].1])!)
+        } else {
+            num += getOffsetForMonth()
+        }
+        return num
+    }
+
+    func collectionView(_ collectionView: UICollectionView, layout collectionViewLayout: UICollectionViewLayout, sizeForItemAt indexPath: IndexPath) -> CGSize {
+        return CGSize(width: kScreenWidth / 7, height: kScreenWidth / 7)
+    }
+
+    func collectionView(_ collectionView: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
+        let cell: HZHistoryDateCell = collectionView.dequeueReusableCell(withReuseIdentifier: HZHistoryDateCell.identifier, for: indexPath) as! HZHistoryDateCell
+        var time = 0
+        time = setNilDate(monthCount - indexPath.section)
+        time = time >= 7 ? time - 7 : time
+        if indexPath.section == 0 {
+            time += dayIndex - getOffsetDay()
+            time = time % 7
+        }
+        
+        if indexPath.row < time {
+            cell.setCell("", model: HZGuardHistoryModel())
+        } else {
+            if indexPath.section == 0 {
+                cell.setCell(dayOffsetArr[indexPath.row - time], model: HZGuardHistoryModel())
+            } else {
+                cell.setCell(dayArr[indexPath.row - time], model: HZGuardHistoryModel())
+            }
+        }
+        return cell
+    }
+    
+    func collectionView(_ collectionView: UICollectionView, viewForSupplementaryElementOfKind kind: String, at indexPath: IndexPath) -> UICollectionReusableView {
+        if kind == UICollectionView.elementKindSectionHeader {
+            let v = collectionView.dequeueReusableSupplementaryView(ofKind: kind, withReuseIdentifier: "header_view", for: indexPath)
+            v.backgroundColor = UIColor.colorWithHex(hexStr: "#FAFBFD")
+            for item in v.subviews {
+                item.removeFromSuperview()
+            }
+            let monthLabel = UILabel(frame: CGRect(x: 16, y: 0, width: kScreenWidth - 32, height: 40))
+            monthLabel.textColor = UIColor.colorWithHex(hexStr: "#9397A1")
+            monthLabel.font = font_RegularFont(size: 14)
+            monthLabel.text = yearArr[timeArray[monthCount - indexPath.section].0] + "年" + monthArr[timeArray[monthCount - indexPath.section].1] + "月"
+            v.addSubview(monthLabel)
+            return v
+        }
+        return UICollectionReusableView()
+    }
+    
+    func collectionView(_ collectionView: UICollectionView, layout collectionViewLayout: UICollectionViewLayout, referenceSizeForHeaderInSection section: Int) -> CGSize {
+        return CGSize(width: kScreenWidth, height: 40.0)
+    }
+```
+* 运行一下，完美实现，后续扩展一下90天为可配置文件，就可以封装一个简单的日历视图了。
+
+
+## 结束
+
+欢迎交流。
+
+—— Ade 
+
+
