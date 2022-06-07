@@ -223,7 +223,18 @@ class RemoteCtrlManager: NSObject {
 ```
 
 * 到此基本实现了完整功能也提供了足够的拓展性。
+* 因为车控实在太多，抱着前期多干点后期少遭罪的态度，终于花了一周时间搞完。
+* 最后再发一下业务是如何调用的，代码如下：
 
+```js
+    let cmdBody = SkylightCmdBody()
+    let manager = CtrlCmdManager.shared
+    cmdBody.skyOperate = sunroof == 2 ? .AIR : .STOP
+    manager.CtrlCmd(.NetControl, cmdBody: cmdBody)
+    manager.cmdResult.getResultCallback = { [weak self] model in
+        //具体业务处理
+    }
+```
 
 ## 结束
 
