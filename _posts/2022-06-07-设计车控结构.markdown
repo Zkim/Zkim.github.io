@@ -1,0 +1,234 @@
+---
+layout:     post
+title:      "车控结构设计"
+subtitle:   " \"记录一下\""
+# date:       2022-06-07 16:00:00
+author:     "Ade"
+header-img: "img/zujian.jpg"
+catalog: true
+featured-condition-size: 2
+tags:
+    - 技术
+---
+
+> “疫情后的第一篇”
+
+
+## 正文
+* 由于上海突发疫情，已经隔离了两个多月，在家办公效率时高时低，复工后赶紧抽时间把疫情期间重构的车控部分记录一下。
+* 背景是疫情期间迭代UI的改动巨大，正好可以将之前的代码结构重新调整一下，由于疫情在家隔离没法实车测试，正好有足够时间进行技术升级。
+* 首先说一下车控模块的设计思路，车控模块主要是三个结构组成：
+
+1. 第一层，是处理发送蓝牙模式A、蓝牙模式B、网络构成的基础模块，这一层业务不需要进行考虑和处理
+2. 第二层，是各个类型的车控数据结构
+3. 第三层，是主要暴露给业务使用的delegate、回调、以及业务处理发起与调用
+
+## 结构图
+* 基本结构考虑完成后，画一个结构图把思路串一下
+* 车控结构图如下：
+![车控结构图](/img/cmd_image.jpg)
+
+## 上代码（命名已脱敏）
+#### 执行层
+* 从下至上阅读更方便读者理解方案的构思。
+* 最下层为执行层主要负责的工作是底层车控的响应执行以及拿到数据后的基本解析，以天窗为例：
+```js
+    //单例注册
+    public static let shared = CmdExecuteControl()
+    //传递回调
+    public var passResultBlock: (()->())?
+    //车控总代理
+    public weak var handleDelegate: CmdHandleDelegate?
+    //做一个回调数据保存 也为了更好的实现拓展
+    private var model = CmdControlDataHandle.shared.modelData
+
+    public func bleACtrlCmd(_ cmdBody: HZCtrlCmdBody) {
+        //delegate实现
+        if let delegate = handleDelegate {
+            delegate.Controlstart?()
+        }
+        
+        let manager = BleAExecuteControl.shared
+        var cmd = BleACommand.carSearch //蓝牙模块属性初始化
+
+        // 天窗 转换类型 HZSkylightCmdBody为控制层处理，后面再讲
+        if cmdBody.isMember(of: SkylightCmdBody.self) {
+            let body = cmdBody as! SkylightCmdBody
+            if body.skyOperate == .OPEN {
+                cmd = .sunRoofOpen
+            } else if body.skyOperate == .CLOSE {
+                cmd = .sunRoofClose
+            } else if body.skyOperate == .WARPED {
+                cmd = .sunRoofVentilate
+            }
+        }
+        manager.sendCmdControl(cmd) { [weak self] _ in
+            // 发起bleA车控 接受回调
+            if let model = self?.model {
+                self?.passResult(model)
+            }
+        }
+    }
+
+    func passResult(_ model: RemoteControlModelData) {
+        if let delegate = handleDelegate {
+            delegate.controlStop?()
+            delegate.controlReturnParameters?(self.model)
+        }
+    }
+```
+* 执行层的代理和数据Handle如下：
+* 经过上面的入口处理，剩下的就是在方法中进行各个车控的底层实现，这里就是根据业务不同进行的基础实现
+
+```js
+
+@objc protocol CmdHandleDelegate: NSObjectProtocol {
+    // 回调结果
+    @objc optional func controlReturnParameters(_ model: RemoteControlModelData)
+    // 发起车控
+    @objc optional func Controlstart()
+    // 结束车控
+    @objc optional func controlStop()
+}
+
+class CmdControlDataHandle: NSObject {
+
+    public static let shared = CmdControlDataHandle()
+    public var modelData: RemoteControlModelData = RemoteControlModelData()
+    
+}
+
+```
+* 到此业务调用方不关心的底层实现基本完成。
+
+#### 控制层
+* 控制层的定义为，各个车控的数据规范及转换，以天窗为例：
+
+```js
+/**
+ * 天窗
+ * @param skyOperate
+ * @param percentage 0~100 ->停止无需传参
+ */
+class SkylightCmdBody: HZCtrlCmdBody {
+    var skyOperate: SkyOperate = .NONE
+    @objc var percentage: Int = -1
+}
+
+enum SkyOperate {
+    /**
+     * 天窗打开
+     */
+    case OPEN
+
+    /**
+     * 天窗关闭
+     */
+    case CLOSE
+
+    /**
+     * 天窗翘起
+     */
+    case WARPED
+
+    /**
+     * 天窗停止
+     */
+    case STOP
+    
+    /**
+     * 天窗通风
+     */
+    case AIR
+    
+    case NONE
+}
+```
+* 上面的代码规范了天窗车控输入的model格式。
+* 当控制层拿到规范数据格式，传递给执行层进行解析并处理到对应的车控并发起。
+
+```js
+// 每当业务需要使用车控，需要将当前cmdBody对应的数据格式进行输出
+ if cmdBody.isMember(of: SkylightCmdBody.self) {
+      let body = cmdBody as! SkylightCmdBody
+      if body.skyOperate == .OPEN {
+          cmd = .sunRoofOpen
+      } else if body.skyOperate == .CLOSE {
+          cmd = .sunRoofClose
+      } else if body.skyOperate == .WARPED {
+          cmd = .sunRoofVentilate
+      }
+  }
+```
+* 另外还要传递API层下发的内容给底层执行并且实现执行层的代理，代理不直接暴露给业务使用，而是配合API层数据进行应用
+```js
+class CmdLaunchControl: NSObject {
+
+    public static let shared = CmdLaunchControl()
+    
+    /// 传递车控 并发起
+    public func CtrlCmd(_ type: CtrlCmdType, cmdBody: CtrlCmdBody) {
+        let execute = CmdExecuteControl.shared
+        execute.handleDelegate = self
+        switch type {
+        case .BleAControl:
+            execute.bleACtrlCmd(cmdBody)
+        case .BleBControl:
+            execute.bleBCtrlCmd(cmdBody)
+        case .NetControl:
+            execute.netCtrlCmd(cmdBody)
+        }
+    }
+}
+
+extension CmdLaunchControl: CmdHandleDelegate {
+        
+    func Controlstart() {
+        CtrlCmdManager.shared.cmdResult.isExecuting = true
+    }
+    
+    func controlStop() {
+        CtrlCmdManager.shared.cmdResult.isExecuting = false
+    }
+    
+    func controlReturnParameters(_ model: RemoteControlModelData) {
+        // 回调
+        if let callBack = CtrlCmdManager.shared.cmdResult.getResultCallback {
+            callBack(model)
+        }
+    } 
+}
+```
+
+
+#### API层
+* API层的定义为，暴露给业务方直接调用的方法和实例。
+```js
+
+class CtrlCmdManager: NSObject {
+    
+    public static let shared = CtrlCmdManager()
+    public var cmdResult: RemoteCtrlManager = RemoteCtrlManager()
+    /// 下发车控
+    public func CtrlCmd(_ type: CtrlCmdType, cmdBody: CtrlCmdBody) {
+        CmdLaunchControl.shared.CtrlCmd(type, cmdBody: cmdBody)
+    }
+    
+}
+
+class RemoteCtrlManager: NSObject {
+    public var isExecuting: Bool = false //车控是否在执行
+    public var getResultCallback: ((RemoteControlModelData) -> ())? //回调
+}
+```
+
+* 到此基本实现了完整功能也提供了足够的拓展性。
+
+
+## 结束
+
+欢迎交流。
+
+—— Ade 
+
+
