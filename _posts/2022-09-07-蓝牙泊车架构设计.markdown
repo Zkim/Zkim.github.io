@@ -1,0 +1,75 @@
+---
+layout:     post
+title:      "车控结构设计"
+subtitle:   " \"记录一下\""
+# date:       2022-09-07 16:20:00
+author:     "Ade"
+header-img: "img/zujian.jpg"
+catalog: true
+featured-condition-size: 2
+tags:
+    - 技术
+---
+
+> “出差两个月的积累”
+
+
+## 正文
+* 由于上海疫情结束，6月底出发去浙江实车联调新车型蓝牙RPA泊车功能，功能第一版基本开发完成，正好有时间整理，也正好梳理一下思路。
+* 首先说一下蓝牙泊车的设计思路，主要是分成几个模块组成：
+
+1. 第一个模块，发送蓝牙信号的封装
+2. 第二个模块，接收蓝牙信号的解析、封装
+3. 第三个模块，视图渲染层
+4. 第三个模块，动画渲染层
+
+* 整理难点：
+
+1. 难点1，蓝牙二进制流不是一次性发送，拆包，根据分包数据，处理丢包数据、组合分包数据
+2. 难点2，车位渲染，性能损耗
+3. 难点3，自选车位功能，需要把客户端位置转化为大端蓝牙二进制数据
+4. 难点4，解决异常状态定时器存在不消失问题，可能造成安全隐患
+5. 难点5，检测信号跳变
+
+## 流程图
+* 开搞前先构思下流程图
+* 泊车流程图如下：
+![泊车流程图](/img/bleSpaceCar-process.jpg)
+
+## 上代码（命名已脱敏）
+#### 发送蓝牙信号
+* 根据文档把对应的信号，抽象成enum，根据enum实现对应的信号发送。
+```js
+    enum RPACMD {
+        case RPA_StartParking   // 开启泊车
+        case RPA_StopParking   // 停止泊车
+    }
+
+    // 调用
+    HZBleControl.manager.sendRPAParkingCommand(cmd:.RPA_StartParking)
+
+    class func sendParkingCmd(cmd:RPACMD) {
+        var data = Data()
+        switch cmd {
+        case .RPA_StartParking:
+            data.append(contentsOf: [0x2A, 0x01, 0x01])
+        case .RPA_StopParking:
+            data.append(contentsOf: [0x2A, 0x01, 0x00])
+        }
+        let carId = "车辆唯一id"
+        // 发送指令
+        BleKit.sharedInstance().sendData(data, carId: carId)
+    }
+```
+
+#### 接收蓝牙信号的解析
+
+后续待补充......
+
+## 结束
+
+欢迎交流。
+
+—— Ade 
+
+
