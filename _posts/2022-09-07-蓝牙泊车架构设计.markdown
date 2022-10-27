@@ -11,7 +11,7 @@ tags:
     - 技术
 ---
 
-> “出差两个月的积累”
+> “出差两个月的泊车”
 
 
 ## 正文
@@ -63,8 +63,123 @@ tags:
 ```
 
 #### 接收蓝牙信号的解析
+* 挑一个逻辑相对复杂的来说下，蓝牙每200毫秒会发送一次信号，三次信号组合后才是一组完整数据。
+* 所以要处理丢包逻辑，组合逻辑。
+* 核心代码如下
 
-后续待补充......
+
+```js
+    // 校验当前蓝牙返回数据
+    private func checkFrameData(_ frame:Int) -> Bool {
+        if HZRPADataHandle.shared.frameData.count == 0 && frame == 1 {
+            return true
+        }  else if HZRPADataHandle.shared.frameData.count == 1 && frame == 2 {
+            return true
+        } else if HZRPADataHandle.shared.frameData.count == 2 && frame == 3 {
+            return true
+        } else {
+            //遇到丢包等问题
+            return false
+        }
+    }
+    
+    // (RPADataModel, Bool)  bool为false为不完整数据，不做回调处理
+    public class func analysisRPASignal(_ data: Data) -> (RPADataModel, Bool) {
+        // 第几帧数据 1、2泊车的  // 第二字节 这一帧数据多长
+        let frame = data.subdata(in: 0..<1).oneByteToInt()
+        let result = RPADataHandle.shared.checkFrameData(frame)
+        if result == true {
+            RPADataHandle.shared.frameData.append(data)
+            if RPADataHandle.shared.frameData.count == 3 {
+                var frameDataTop = RPADataHandle.shared.frameData[0]
+                var frameDataCenter = RPADataHandle.shared.frameData[1]
+                var frameDataBottom = RPADataHandle.shared.frameData[2]
+                // 删除前两字节数据
+                frameDataTop.removeFirst(2)
+                frameDataCenter.removeFirst(2)
+                frameDataBottom.removeFirst(2)
+                frameDataTop.append(frameDataCenter)
+                frameDataTop.append(frameDataBottom)
+                //重新初始化 不重新初始化会导致Data是从第三位开始 按index取值会出现数组越界
+                RPADataHandle.shared.bleDataSource = Data(frameDataTop)
+                RPADataHandle.shared.frameData.removeAll()
+            }
+        } else {
+            //丢包处理
+            RPADataHandle.shared.bleDataSource = Data()
+            RPADataHandle.shared.frameData.removeAll()
+        }
+        let bleData = RPADataHandle.shared.bleDataSource
+        if  bleData.count >= 301 {
+            let model = HZRPADataModel()
+            model.RPA_ADCS4_RPA_FunctionMode = bleData.subdata(in: 0..<1).oneByteToInt()
+            ...
+            return model
+        }
+    }
+```
+
+#### 大小端蓝牙转换
+* 业务上通过本地UI映射的数据，以车端信号的方式传输给车端蓝牙，然后进行信号发起。
+* 核心代码如下
+```js
+    // 将从本地解析出来的模拟蓝牙信号数值转换成Data类型
+    private func changeIntToData(_ num: Int) -> Data {
+        var number = num
+        let data: Data = Data(bytes: &number, count: 8)
+        return data
+    }
+    
+    // byteSwapped 字节对调
+    private func swapUInt16Data(data : Data) -> Data {
+        var mdata = data
+        let count = data.count / MemoryLayout<UInt16>.size
+        // UnsafeMutablePointer<UInt16> 已弃用
+        mdata.withUnsafeMutableBytes { (i16ptr: UnsafeMutableRawBufferPointer) in
+            for i in 0..<count {
+                if i > 1 {
+                    i16ptr[i] =  i16ptr[i].byteSwapped
+                }
+            }
+        }
+        return mdata
+    }
+```
+
+#### 蓝牙跳变监听
+* 由于泊车的UI逻辑和一般的页面渲染不同，需要根据信号的跳变实时刷新UI,所以UI模块的拆分极其重要，不然就会出现层级问题，以及事件遮挡等问题。
+* 我的逻辑是首先通过信号的校验和组合设置完成model，再通过model的didset方法监听值通过block回调给页面的逻辑
+* 核心代码如下
+
+
+```js
+//通过 model值的更改，保证信号为最新信号
+ @objc public var dataModel: HZRPADataModel = HZRPADataModel() {
+        didSet{
+            //跳变处理
+            // 复制
+            HZRPADataHandle.shared.sourceModel = dataModel
+            
+            // 车位处理
+            if let callBack = spaceCallback {
+                callBack()
+            }
+            
+            if oldValue.RPA_ADCS11_PA_WorkSts == .error {
+                //中断跳变 不再继续执行
+                return
+            }
+                        
+            if oldValue.RPA_ADCS4_RPA_FunctionMode != sourceModel.RPA_ADCS4_RPA_FunctionMode {
+                //RPA_ADCU6_RPA_FunctionMode 监听
+                if let callBack = functionModeCallback {
+                    callBack(dataModel)
+                }
+            }
+        }
+ }
+
+```
 
 ## 结束
 
