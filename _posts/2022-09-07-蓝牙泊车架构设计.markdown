@@ -1,6 +1,6 @@
 ---
 layout:     post
-title:      "车控结构设计"
+title:      "蓝牙泊车"
 subtitle:   " \"记录一下\""
 # date:       2022-09-07 16:20:00
 author:     "Ade"
@@ -34,7 +34,7 @@ tags:
 ## 流程图
 * 开搞前先构思下流程图
 * 泊车流程图如下：
-![泊车流程图](/img/bleSpaceCar-process.jpg)
+![泊车流程图](img/bleSpaceCar-process.jpg)
 
 ## 上代码（命名已脱敏）
 #### 发送蓝牙信号
