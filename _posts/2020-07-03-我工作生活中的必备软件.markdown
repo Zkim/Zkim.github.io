@@ -29,7 +29,7 @@ tags:
 
 3. [iterm2 + oh-my-zsh](https://iterm2.com) , 虽说是个人习惯，但是用过的都说好。
 
-4. [Alfred](https://www.alfredapp.com) 搜索工具巨鸡儿好用！
+4. [Alfred](https://www.alfredapp.com) 搜索工具。
 
 5. Dash 看文档必备，这个大家应该都知道吧，作为付费用户的推荐。
 

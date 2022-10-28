@@ -11,7 +11,7 @@ tags:
     - 技术
 ---
 
-> “出差两个月的泊车”
+> “Unity调研”
 
 
 ## 正文
@@ -35,7 +35,7 @@ tags:
 ``` 
 * delegate 添加 unityFramework 的初始化方法
 ```js
-	func initUnityFramework(){
+	func initUnityFramework() {
        unityFramework = getUnityFramework()
        if let unityframework = self.unityFramework {
            unityframework.setDataBundleId("com.unity3d.framework")
