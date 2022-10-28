@@ -20,7 +20,7 @@ tags:
     func ==(lhs: Self, rhs: Self) -> Bool
 }
 *  associatedtype 泛型占位
-*  Xcode(13.2.1)版本对歧义命名有要求，例如:
+*  Xcode(13.2.1)后版本对歧义命名有要求，例如:
 ```js
 class Test: UIView {
 	
@@ -55,8 +55,23 @@ test.cornerRadius = 12
         rotaionAniamtionAnima.isRemovedOnCompletion = false
         backLayer.add(rotaionAniamtionAnima, forKey: "rotaionAniamtion")
 ```
-
-
+*  例子如下：
+```js
+extension UIView {
+    /// 指定圆角
+    ///
+    /// - Parameters:
+    ///   - corners: 需要实现为圆角的角，可传入多个
+    ///   - radii: 圆角半径
+    func extCorner(corners: UIRectCorner, radii: CGFloat) {
+        let maskPath = UIBezierPath.init(roundedRect: self.bounds, byRoundingCorners: corners, cornerRadii: CGSize(width: radii, height: radii))
+        let maskLayer = CAShapeLayer()
+        maskLayer.frame = self.bounds
+        maskLayer.path = maskPath.cgPath
+        self.layer.mask = maskLayer
+    }
+}
+```
 
 ## 结束
 

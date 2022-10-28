@@ -1,0 +1,119 @@
+---
+layout:     post
+title:      "iOS项目集成Unity视图"
+subtitle:   " \"记录一下\""
+# date:       2022-09-07 16:20:00
+author:     "Ade"
+header-img: "img/zujian.jpg"
+catalog: true
+featured-condition-size: 2
+tags:
+    - 技术
+---
+
+> “出差两个月的泊车”
+
+
+## 正文
+* 最近接了个集成Unity的需求，网上找了找教程，顺便自己踩踩坑。
+
+## 运行篇
+
+* 主项目左下角 add files to “项目名” 添加Unity 的 target
+* 修改unity签名证书并切换target可以正常运行
+* 运行报错MapFileParser.sh: Permission denied 解决方案如下，进行控制台sudo授权
+
+```js
+	sudo chmod 777 /Users/xxx/myProject/hznz_iOS/EnvironmentSim/MapFileParser.sh 
+```
+ 
+* general 添加UnityFramework.framework  默认embed为 Embed & Sign
+* 删除build Phases中Link Binary 中的  status为Required 的UnityFramework.framework 
+* 添加桥接文件：
+```js
+	#import <UnityFramework/UnityFramework.h>
+``` 
+* delegate 添加 unityFramework 的初始化方法
+```js
+	func initUnityFramework(){
+       unityFramework = getUnityFramework()
+       if let unityframework = self.unityFramework {
+           unityframework.setDataBundleId("com.unity3d.framework")
+           unityframework.register(self)
+           unityframework.runEmbedded(withArgc: CommandLine.argc, argv: CommandLine.unsafeArgv, appLaunchOpts: appLaunchOpts)
+       }
+   }
+    private func getUnityFramework() -> UnityFramework? {
+        let bundlePath: String = Bundle.main.bundlePath + "/Frameworks/UnityFramework.framework"
+ 
+        let bundle = Bundle(path: bundlePath)
+        if bundle?.isLoaded == false {
+            bundle?.load()
+        }
+         
+        let ufw = bundle?.principalClass?.getInstance()
+        if ufw?.appController() == nil {
+            let machineHeader = UnsafeMutablePointer<MachHeader>.allocate(capacity: 1)
+            machineHeader.pointee = _mh_execute_header
+             
+            ufw!.setExecuteHeader(machineHeader)
+        }
+        return ufw
+    }
+     
+    func unityIsInitialized( ) -> Bool {
+        return (self.unityFramework != nil && self.unityFramework?.appController() != nil)
+    }
+     
+    // 卸载unity
+    private func unloadUnityInternal() {
+        if let unityFramework = self.unityFramework {
+            unityFramework.unregisterFrameworkListener(self)
+        }
+        self.unityFramework = nil
+    }
+    // 监听
+     func unityDidUnload(_ notification: Notification!) {
+         unloadUnityInternal()
+     }
+      
+      
+     func unityDidQuit(_ notification: Notification!) {
+         unloadUnityInternal()
+     }
+``` 
+* 需要调用视图的位置先调用
+```js
+	appDelegate.initUnityFramework()
+``` 
+* 然后会整屏切换到unity,需要执行 
+```js
+	appDelegate.window?.makeKeyAndVisible()
+```
+```js
+	guard let unityRootView = appDelegate.unityFramework?.appController().rootView else {
+           return
+   }
+```
+	
+* 拿到unity并且改变frame，进行视图操作即可
+* 初始化要在拿视图前一段时间操作，不然unity视图显示不出来
+* 两端交互调用待后续对接
+
+## 打包篇
+
+* 打包报错
+
+```js
+	#import <UnityFramework/UnityFramework.h> not find
+``` 
+
+* 解决方案：项目中添加 Header Search Path 添加一条 $(PROJECT_DIR)/IOSProject/UnityFramework.framework/Headers
+
+## 结束
+
+欢迎交流。
+
+—— Ade 
+
+
