@@ -73,6 +73,11 @@ extension UIView {
 }
 ```
 
+```js
+	CaseIterable
+```
+*  enum可遵循的协议，可获取allCases属性，用于表示一个包含枚举所有成员的集合。
+
 ## 结束
 
 欢迎交流。
