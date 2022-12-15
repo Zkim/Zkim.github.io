@@ -53,7 +53,7 @@ netease_comment: false
 # Sidebar settings
 sidebar: true                           # whether or not using Sidebar.
 sidebar-about-description: "闷头写写代码，找朋友吹吹牛逼，享受人生，体会过程。"
-sidebar-avatar: /img/avatar-ade.jpg      # use absolute URL, seeing it's used in both `/` and `/about/`
+sidebar-avatar: /img/avatar-Ade.jpg      # use absolute URL, seeing it's used in both `/` and `/about/`
 
 
 
