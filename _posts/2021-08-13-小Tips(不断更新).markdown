@@ -78,6 +78,23 @@ extension UIView {
 ```
 *  enum可遵循的协议，可获取allCases属性，用于表示一个包含枚举所有成员的集合。
 
+
+*  设置默哀模式
+```js
+    private func setSilenceMode(_ vc: UIViewController) {
+        let overlay = UIView(frame: vc.view.bounds)
+        overlay.isUserInteractionEnabled = false
+        overlay.translatesAutoresizingMaskIntoConstraints = false
+        overlay.backgroundColor = .lightGray
+        overlay.layer.compositingFilter = "saturationBlendMode"
+        vc.view.addSubview(overlay)
+        vc.view.bringSubviewToFront(overlay)
+        overlay.snp.makeConstraints { make in
+            make.edges.equalToSuperview()
+        }
+    }
+```
+
 ## 结束
 
 欢迎交流。
