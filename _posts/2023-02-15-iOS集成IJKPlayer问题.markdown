@@ -14,10 +14,9 @@ tags:
 > “IJKPlayer集成”
 
 
-## IJKPlayer运行demo:
+# IJKPlayer运行demo:
 
 * brew -v error: Version value must be a string; got a NilClass () (TypeError)
-
 ```js
     解决方案：/usr/local/Homebrew/Library/Taps/homebrew 删除 homebrew-core 文件
 ```
@@ -28,7 +27,7 @@ tags:
     再重新执行脚本: ./compile-ffmpeg.sh all 
 ```
 
-## IJKPlayer集成项目:
+# IJKPlayer集成项目:
 
 * 项目Product文件夹不显示
 ```js
@@ -39,7 +38,7 @@ tags:
     将模拟器的arm64给排除出去，buildSetting - Architectures - Excluded Architectures -Debug/Release  选择Any iOS Simulator SDK 添加上arm64
 ```
 
-## IJKPlayerDemo:
+# IJKPlayerDemo:
 ```js
      let options = IJKFFOptions.byDefault()
         
